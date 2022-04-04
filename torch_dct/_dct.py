@@ -13,7 +13,7 @@ def dct1(x):
     x_shape = x.shape
     x = x.view(-1, x_shape[-1])
 
-    return torch.rfft(torch.cat([x, x.flip([1])[:, 1:-1]], dim=1), 1)[:, :, 0].view(*x_shape)
+    return torch.fft.rfft(torch.cat([x, x.flip([1])[:, 1:-1]], dim=1), 1)[:, :, 0].view(*x_shape)
 
 
 def idct1(X):
@@ -46,22 +46,19 @@ def dct(x, norm=None):
 
     v = torch.cat([x[:, ::2], x[:, 1::2].flip([1])], dim=1)
 
-    Vc = torch.rfft(v, 1, onesided=False)
+    Vc = torch.fft.fft(v, dim=1)
 
-    k = - torch.arange(N, dtype=x.dtype, device=x.device)[None, :] * np.pi / (2 * N)
+    k = - torch.arange(N, dtype=x.dtype, device=x.device)[None] * np.pi / (2 * N)
     W_r = torch.cos(k)
     W_i = torch.sin(k)
 
-    V = Vc[:, :, 0] * W_r - Vc[:, :, 1] * W_i
+    V = Vc.real * W_r - Vc.imag * W_i
 
     if norm == 'ortho':
         V[:, 0] /= np.sqrt(N) * 2
         V[:, 1:] /= np.sqrt(N / 2) * 2
 
-    V = 2 * V.view(*x_shape)
-
-    return V
-
+    return 2 * V.view(*x_shape)
 
 def idct(X, norm=None):
     """
@@ -96,9 +93,10 @@ def idct(X, norm=None):
     V_r = V_t_r * W_r - V_t_i * W_i
     V_i = V_t_r * W_i + V_t_i * W_r
 
-    V = torch.cat([V_r.unsqueeze(2), V_i.unsqueeze(2)], dim=2)
+    V = torch.complex(V_r, V_i)
 
-    v = torch.irfft(V, 1, onesided=False)
+    v = torch.fft.irfft(V, n=V.shape[1], dim=1)
+
     x = v.new_zeros(v.shape)
     x[:, ::2] += v[:, :N - (N // 2)]
     x[:, 1::2] += v.flip([1])[:, :N // 2]
@@ -178,7 +176,7 @@ def idct_3d(X, norm=None):
 
 class LinearDCT(nn.Linear):
     """Implement any DCT as a linear layer; in practice this executes around
-    50x faster on GPU. Unfortunately, the DCT matrix is stored, which will 
+    50x faster on GPU. Unfortunately, the DCT matrix is stored, which will
     increase memory usage.
     :param in_features: size of expected input
     :param type: which dct function in this file to use"""

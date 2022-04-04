@@ -46,17 +46,13 @@ def dct(x, norm=None):
 
     v = torch.cat([x[:, ::2], x[:, 1::2].flip([1])], dim=1)
 
-    Vc = torch.fft.fft(v, dim=1)
+    Vc = torch.fft.fft(v, dim=1, norm=norm)
 
     k = - torch.arange(N, dtype=x.dtype, device=x.device)[None] * np.pi / (2 * N)
     W_r = torch.cos(k)
     W_i = torch.sin(k)
 
     V = Vc.real * W_r - Vc.imag * W_i
-
-    if norm == 'ortho':
-        V[:, 0] /= np.sqrt(N) * 2
-        V[:, 1:] /= np.sqrt(N / 2) * 2
 
     return 2 * V.view(*x_shape)
 
@@ -79,10 +75,6 @@ def idct(X, norm=None):
 
     X_v = X.contiguous().view(-1, x_shape[-1]) / 2
 
-    if norm == 'ortho':
-        X_v[:, 0] *= np.sqrt(N) * 2
-        X_v[:, 1:] *= np.sqrt(N / 2) * 2
-
     k = torch.arange(x_shape[-1], dtype=X.dtype, device=X.device)[None, :] * np.pi / (2 * N)
     W_r = torch.cos(k)
     W_i = torch.sin(k)
@@ -95,7 +87,7 @@ def idct(X, norm=None):
 
     V = torch.complex(V_r, V_i)
 
-    v = torch.fft.irfft(V, n=V.shape[1], dim=1)
+    v = torch.fft.irfft(V, n=V.shape[1], dim=1, norm=norm)
 
     x = v.new_zeros(v.shape)
     x[:, ::2] += v[:, :N - (N // 2)]
